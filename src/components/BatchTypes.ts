@@ -23,6 +23,9 @@ export type PlanetData = {
   ra: number;
   transit_depth: number;
   planet_radius_missing: boolean;
+  stellarType: string;
+  multiplePlanets: boolean;
+  energyBudget: number;
 };
 
 export interface Planet {
@@ -30,10 +33,12 @@ export interface Planet {
   probability: number;
   characteristics: PlanetCharacteristics;
   data: PlanetData;
+  habitabilityScore: number;
 }
 
 export interface CategoryCard {
   name: string;
+  description: string;
   count: number;
   icon: string;
   color: string;

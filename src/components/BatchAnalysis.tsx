@@ -16,95 +16,165 @@ interface BackendDataPoint {
   ra?: number;
   transit_depth?: number;
   planet_radius_missing?: boolean;
+  habitabilityScore?: number;
 }
 
 interface BackendData {
   [key: string]: BackendDataPoint;
 }
 
+const determineStellarType = (temperature: number): string => {
+  if (temperature > 30000) return 'O';
+  if (temperature > 10000) return 'B';
+  if (temperature > 7500) return 'A';
+  if (temperature > 6000) return 'F';
+  if (temperature > 5200) return 'G';
+  if (temperature > 3700) return 'K';
+  return 'M';
+};
+
 const categories = [
   {
-    name: 'Water Worlds',
-    filter: (p: Planet) => p.characteristics.water,
-    color: 'blue',
-    icon: '💧'
+    name: 'Multiple Planet Systems',
+    description: 'Analyze star systems with multiple planets using RA, DEC, and orbital periods',
+    filter: (p: Planet) => p.data.ra && p.data.dec && p.data.orbital_period,
+    color: 'indigo',
+    icon: '🪐'
   },
   {
-    name: 'Oxygen Rich',
-    filter: (p: Planet) => p.characteristics.oxygen,
-    color: 'cyan',
-    icon: '🌬️'
-  },
-  {
-    name: 'Rocky Planets',
-    filter: (p: Planet) => p.characteristics.rocks,
+    name: 'Stellar Type Clustering',
+    description: 'Group planets by star types using temperature and radius data',
+    filter: (p: Planet) => p.data.stellar_temp && p.data.stellar_radius,
     color: 'amber',
-    icon: '🪨'
+    icon: '⭐'
   },
   {
-    name: 'Forest Planets',
-    filter: (p: Planet) => p.characteristics.forest,
+    name: 'Energy Budget Mapping',
+    description: 'Analyze planetary energy environments using flux, temperature, and size',
+    filter: (p: Planet) => p.data.insolation_flux && p.data.equilibrium_temp && p.data.planet_radius,
+    color: 'red',
+    icon: '�️'
+  },
+  {
+    name: 'Survey Completeness',
+    description: 'Map regions with missing data to guide future observations',
+    filter: (p: Planet) => p.data.transit_duration_missing || p.data.planet_radius_missing,
+    color: 'blue',
+    icon: '📊'
+  },
+  {
+    name: 'Habitability Scoring',
+    description: 'Calculate composite habitability scores using multiple parameters',
+    filter: (p: Planet) => (
+      p.data.equilibrium_temp && 
+      p.data.insolation_flux && 
+      p.data.planet_radius && 
+      p.data.koi_model_snr &&
+      p.data.orbital_period
+    ),
     color: 'green',
-    icon: '🌳'
+    icon: '🌍'
+  },
+  {
+    name: 'Outlier Detection',
+    description: 'Identify unusual planetary characteristics for further study',
+    filter: (p: Planet) => p.data.planet_radius && p.data.insolation_flux,
+    color: 'purple',
+    icon: '🔍'
+  },
+  {
+    name: 'Correlation Network',
+    description: 'Visualize relationships between planetary parameters',
+    filter: (p: Planet) => true, // Uses all available data
+    color: 'cyan',
+    icon: '🕸️'
   },
   {
     name: 'Hydrogen Giants',
+    description: 'Large planets with significant hydrogen content',
     filter: (p: Planet) => p.characteristics.hydrogen,
     color: 'violet',
     icon: '⚛️'
   },
   {
     name: 'Radiation Zones',
+    description: 'Planets with high radiation levels',
     filter: (p: Planet) => p.characteristics.radiation,
     color: 'red',
     icon: '☢️'
   },
   {
     name: 'Atmospheric',
+    description: 'Planets with significant atmospheres',
     filter: (p: Planet) => p.characteristics.atmosphere,
     color: 'indigo',
     icon: '🌫️'
   },
   {
     name: 'Magnetic Fields',
+    description: 'Planets with detectable magnetic fields',
     filter: (p: Planet) => p.characteristics.magnetic_field,
     color: 'purple',
     icon: '🧲'
   }
 ];
 
-const generatePlanet = (name: string, data: BackendDataPoint): Planet => {
-  const probability = data.probability;
-  
-  return {
-    name,
-    probability,
-    characteristics: {
-      water: probability > 0.5,
-      oxygen: probability > 0.6,
-      rocks: probability > 0.3,
-      forest: probability > 0.7,
-      hydrogen: probability > 0.4,
-      radiation: probability > 0.6,
-      atmosphere: probability > 0.5,
-      magnetic_field: probability > 0.6
-    },
-    data: {
-      orbital_period: Number((data.orbital_period || Math.random() * 1000).toFixed(2)),
-      equilibrium_temp: Number((data.equilibrium_temp || Math.random() * 500 + 200).toFixed(2)),
-      stellar_temp: Number((data.stellar_temp || Math.random() * 3000 + 3000).toFixed(2)),
-      dec: Number((data.dec || (Math.random() * 180 - 90)).toFixed(6)),
-      planet_radius: Number((data.planet_radius || Math.random() * 5).toFixed(2)),
-      koi_model_snr: Number((data.koi_model_snr || Math.random() * 100).toFixed(2)),
-      stellar_radius: Number((data.stellar_radius || Math.random() * 2).toFixed(2)),
-      transit_duration: Number((data.transit_duration || Math.random() * 20).toFixed(2)),
-      insolation_flux: Number((data.insolation_flux || Math.random() * 1000).toFixed(2)),
-      ra: Number((data.ra || Math.random() * 360).toFixed(6)),
-      transit_depth: Number((data.transit_depth || Math.random() * 2).toFixed(4)),
-      planet_radius_missing: data.planet_radius_missing || false
-    }
+  const calculateHabitabilityScore = (data: BackendDataPoint): number => {
+    let score = 0;
+    
+    // Temperature check (200-350K)
+    if (data.equilibrium_temp && data.equilibrium_temp >= 200 && data.equilibrium_temp <= 350) score += 2;
+    
+    // Flux check (0.3-2 Earth flux)
+    if (data.insolation_flux && data.insolation_flux >= 0.3 && data.insolation_flux <= 2) score += 2;
+    
+    // Size check (<2 Earth radii)
+    if (data.planet_radius && data.planet_radius < 2) score += 2;
+    
+    // SNR confidence
+    if (data.koi_model_snr && data.koi_model_snr > 10) score += 1;
+    
+    // Orbital stability
+    if (data.orbital_period && data.orbital_period > 30 && data.orbital_period < 500) score += 1;
+    
+    return score;
+  };  const generatePlanet = (name: string, data: BackendDataPoint): Planet => {
+    const habitabilityScore = calculateHabitabilityScore(data);
+    const probability = Math.min(0.9, (habitabilityScore / 8) + 0.3);
+    
+    return {
+      name,
+      probability,
+      habitabilityScore,
+      characteristics: {
+        water: data.insolation_flux ? data.insolation_flux > 0.5 : false,
+        oxygen: data.equilibrium_temp ? data.equilibrium_temp > 200 && data.equilibrium_temp < 350 : false,
+        rocks: data.planet_radius ? data.planet_radius < 2 : false,
+        forest: habitabilityScore > 6,
+        hydrogen: data.planet_radius ? data.planet_radius > 3 : false,
+        radiation: data.stellar_temp ? data.stellar_temp > 6000 : false,
+        atmosphere: data.insolation_flux ? data.insolation_flux > 0.3 : false,
+        magnetic_field: data.planet_radius ? data.planet_radius > 0.8 : false
+      },
+      data: {
+        orbital_period: Number((data.orbital_period || 0).toFixed(2)),
+        equilibrium_temp: Number((data.equilibrium_temp || 0).toFixed(2)),
+        stellar_temp: Number((data.stellar_temp || 0).toFixed(2)),
+        dec: Number((data.dec || 0).toFixed(6)),
+        planet_radius: Number((data.planet_radius || 0).toFixed(2)),
+        koi_model_snr: Number((data.koi_model_snr || 0).toFixed(2)),
+        stellar_radius: Number((data.stellar_radius || 0).toFixed(2)),
+        transit_duration: Number((data.transit_duration || 0).toFixed(2)),
+        insolation_flux: Number((data.insolation_flux || 0).toFixed(2)),
+        ra: Number((data.ra || 0).toFixed(6)),
+        transit_depth: Number((data.transit_depth || 0).toFixed(4)),
+        planet_radius_missing: data.planet_radius_missing || false,
+        stellarType: data.stellar_temp ? determineStellarType(data.stellar_temp) : "Unknown",
+        multiplePlanets: false, // Will be updated in data processing
+        energyBudget: data.insolation_flux || 0
+      }
+    };
   };
-};
 
 const convertBackendData = (data: BackendData): Planet[] => {
   return Object.entries(data).map(([key, value]) => generatePlanet(key, value));
@@ -218,6 +288,7 @@ export default function BatchAnalysis() {
       
       const newCards = categories.map(cat => ({
         name: cat.name,
+        description: cat.description,
         count: processedPlanets.filter(cat.filter).length,
         icon: cat.icon,
         color: cat.color,
@@ -433,15 +504,23 @@ export default function BatchAnalysis() {
                   <div
                     key={card.name}
                     onClick={() => handleCategoryChange(card.name)}
-                    className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-lg hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1"
+                    className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-lg hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 group"
                   >
-                    <div className={`flex items-center gap-4 mb-4`}>
-                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl border border-${card.color}-100`}>
+                    <div className="flex items-start gap-4">
+                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl border border-${card.color}-100 group-hover:scale-110 transition-transform`}>
                         {card.icon}
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{card.name}</h3>
-                        <p className="text-sm text-gray-600">{card.count} planets</p>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{card.name}</h3>
+                        <p className="text-sm text-gray-600 mb-3">{card.description}</p>
+                        <div className="flex items-center gap-2">
+                          <div className="px-2 py-1 bg-blue-50 rounded-md text-xs font-medium text-blue-600">
+                            {card.count} planets
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Click to analyze →
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
