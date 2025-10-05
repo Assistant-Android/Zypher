@@ -10,6 +10,10 @@ import threading
 import joblib
 from typing import Optional, Dict, Any, List, Union
 import pickle
+import os
+
+# Google Generative AI (Gemini)
+import google.generativeai as genai
 
 # ML imports
 from sklearn.model_selection import train_test_split
@@ -64,6 +68,69 @@ if not os.path.exists(DATA_PATH):
 
 data_lock = threading.Lock()
 model_lock = threading.Lock()
+
+# Configure Gemini API key
+# Option 1: Paste your API key directly between the quotes below.
+# Example: HARDCODED_GEMINI_API_KEY = "AIza...yourkey..."
+HARDCODED_GEMINI_API_KEY = "AIzaSyCN4Kr94eVNXPx4c2L9aiayH20tjyE8mJw"
+
+# Option 2: Leave the above empty and set the GEMINI_API_KEY environment variable.
+GEMINI_API_KEY = HARDCODED_GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        GEMINI_MODEL = genai.GenerativeModel("models/gemini-2.5-flash-lite")
+    except Exception as e:
+        # If configuration fails, we will fall back to a static response later
+        GEMINI_MODEL = None
+else:
+    GEMINI_MODEL = None
+
+SPACE_KEYWORDS = [
+    "space", "planet", "star", "galaxy", "universe", "cosmos", "astronomy",
+    "nasa", "rocket", "black hole", "nebula", "astronaut", "orbit",
+    "telescope", "milky way", "gravity", "big bang", "mars", "moon", "earth"
+]
+
+def generate_spacebot_reply(user_input: str) -> str:
+    """Generate a SpaceBot reply using Gemini if available, otherwise a fallback string.
+
+    Responds concisely to space-related topics, otherwise politely declines.
+    """
+    if any(word.lower() in user_input.lower() for word in SPACE_KEYWORDS):
+        prompt = (
+            f"You are SpaceBot, an expert on space. "
+            f"Respond in a concise, informative way (30–50 words) about: {user_input}"
+        )
+    else:
+        prompt = (
+            "You are SpaceBot. Politely refuse to discuss anything not about space. "
+            "Respond briefly (under 30 words) by saying you only talk about space topics."
+        )
+
+    if GEMINI_MODEL is None:
+        # Fallback when API key/model is not configured
+        if any(word.lower() in user_input.lower() for word in SPACE_KEYWORDS):
+            return "SpaceBot (fallback): I can discuss planets, stars, galaxies, and more. Please set GEMINI_API_KEY for richer answers."
+        return "SpaceBot (fallback): I only talk about space topics. Please ask about astronomy, planets, stars, or rockets."
+
+    try:
+        response = GEMINI_MODEL.generate_content(prompt)
+        text = getattr(response, "text", None)
+        if not text:
+            return "SpaceBot: I'm having trouble generating a response right now. Please try again."
+        return text.strip()
+    except Exception:
+        return "SpaceBot: The AI service is temporarily unavailable. Please try again later."
+
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
+
+class ChatResponse(BaseModel):
+    reply: str
 
 def validate_numeric_columns(df: pd.DataFrame) -> None:
     """Validate that required columns contain numeric data"""
@@ -172,6 +239,18 @@ def train_model(df: pd.DataFrame, save: bool = True) -> Dict[str, Any]:
 async def health_check():
     """Health check endpoint to verify server is running"""
     return {"status": "ok", "message": "Server is running"}
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(req: ChatRequest):
+    """Chat endpoint backing the frontend assistant.
+
+    Accepts a user message (and optional history) and returns a SpaceBot reply.
+    """
+    user_text = (req.message or "").strip()
+    if not user_text:
+        raise HTTPException(status_code=400, detail="Empty message")
+    reply_text = generate_spacebot_reply(user_text)
+    return ChatResponse(reply=reply_text)
 
 @app.post("/retrain")
 async def retrain_model():

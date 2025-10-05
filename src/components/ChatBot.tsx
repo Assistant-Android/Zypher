@@ -8,20 +8,14 @@ interface Message {
     timestamp: Date;
 }
 
-const dummyResponses = [
-    "I'd be happy to help you with that!",
-    "That's an interesting question. Let me explain...",
-    "Based on what you're asking, I think...",
-    "Here's what I know about that topic...",
-    "I understand your question. Here's my response..."
-];
+const CHAT_API_URL = 'http://localhost:8000/chat';
 
 const ChatBot: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
-            text: "Hello! I'm your AI assistant. How can I help you today?",
+            text: "Hello! I'm Zypher, your AI research assistant. How can I help you today?",
             isBot: true,
             timestamp: new Date()
         }
@@ -53,22 +47,43 @@ const ChatBot: React.FC = () => {
         setInputText('');
         setIsTyping(true);
 
-        // Simulate typing delay
-        setTimeout(() => {
-            // Get random response from dummy responses
-            const randomResponse = dummyResponses[Math.floor(Math.random() * dummyResponses.length)];
-            
-            // Add bot response
+        try {
+            const response = await fetch(CHAT_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMessage.text,
+                    history: messages.map(m => ({
+                        role: m.isBot ? 'assistant' : 'user',
+                        content: m.text
+                    }))
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Chat request failed');
+            }
+            const data = await response.json();
+
             const botMessage: Message = {
                 id: Date.now().toString(),
-                text: randomResponse,
+                text: data.reply ?? 'Sorry, I could not generate a response.',
                 isBot: true,
                 timestamp: new Date()
             };
 
             setMessages(prev => [...prev, botMessage]);
+        } catch (err) {
+            const botMessage: Message = {
+                id: Date.now().toString(),
+                text: 'The assistant is unavailable right now. Please try again later.',
+                isBot: true,
+                timestamp: new Date()
+            };
+            setMessages(prev => [...prev, botMessage]);
+        } finally {
             setIsTyping(false);
-        }, 1000); // 1 second typing delay
+        }
     };
 
     return (

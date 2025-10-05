@@ -7,3 +7,4 @@ scikit-learn
 joblib
 openpyxl
 apscheduler
+google-generativeai
