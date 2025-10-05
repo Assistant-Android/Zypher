@@ -3,6 +3,9 @@
 > _“Our AI doesn’t just find planets — it finds possibilities.”_ 🌍✨  
 
 ---
+Demo
+(https://raw.githubusercontent.com/username/repository/branch/path/to/project.mp4)
+---
 
 ## 🚀 Overview
 **Zypher** is a custom **AI platform revolutionizing exoplanet discovery**.  
@@ -77,8 +80,9 @@ The system includes an **interactive research dashboard**, **AI chatbot**, and *
 
 ## 🧩 Model File
 You can access the trained model here:  
-👉 **[Download Zypher Model (.pkl / .h5)](https://example.com/zypher-model)**  
-*(Replace this link with your actual model file on Google Drive or GitHub Releases)*  
+👉[ **[Download Zypher Model (.pkl / .h5)](https://example.com/zypher-model)**  ]
+(https://github.com/Assistant-Android/Zypher/blob/main/backend/model/random_forest_model%20(1).pkl)
+
 
 ---
 
@@ -128,7 +132,7 @@ Each challenge improved our understanding of AI’s role in astrophysics and sha
 - [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu)  
 - [Kepler Mission](https://www.nasa.gov/mission_pages/kepler/main/index.html)  
 - [TESS Mission](https://archive.stsci.edu/tess/)  
-- [JWST Science Data](https://www.jwst.nasa.gov/science.html)
+
 
 ---
 
