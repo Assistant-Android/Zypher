@@ -4,7 +4,8 @@
 
 ---
 Demo
-(https://raw.githubusercontent.com/username/repository/branch/path/to/project.mp4)
+https://github.com/Assistant-Android/Zypher/blob/main/thumbnail.mp4
+(https://github.com/Assistant-Android/Zypher/blob/main/project.mp4)
 ---
 
 ## 🚀 Overview
