@@ -5,11 +5,17 @@ import type { Planet, CategoryCard } from './BatchTypes';
 interface BackendDataPoint {
   probability: number;
   orbital_period?: number;
-  transit_duration?: number;
+  equilibrium_temp?: number;
+  stellar_temp?: number;
+  dec?: number;
   planet_radius?: number;
-  stellar_mass?: number;
-  temperature?: number;
-  distance?: number;
+  koi_model_snr?: number;
+  stellar_radius?: number;
+  transit_duration?: number;
+  insolation_flux?: number;
+  ra?: number;
+  transit_depth?: number;
+  planet_radius_missing?: boolean;
 }
 
 interface BackendData {
@@ -85,11 +91,17 @@ const generatePlanet = (name: string, data: BackendDataPoint): Planet => {
     },
     data: {
       orbital_period: Number((data.orbital_period || Math.random() * 1000).toFixed(2)),
-      transit_duration: Number((data.transit_duration || Math.random() * 20).toFixed(2)),
+      equilibrium_temp: Number((data.equilibrium_temp || Math.random() * 500 + 200).toFixed(2)),
+      stellar_temp: Number((data.stellar_temp || Math.random() * 3000 + 3000).toFixed(2)),
+      dec: Number((data.dec || (Math.random() * 180 - 90)).toFixed(6)),
       planet_radius: Number((data.planet_radius || Math.random() * 5).toFixed(2)),
-      stellar_mass: Number((data.stellar_mass || Math.random() * 2).toFixed(2)),
-      temperature: Number((data.temperature || Math.random() * 500 - 100).toFixed(2)),
-      distance: Number((data.distance || Math.random() * 1000).toFixed(2))
+      koi_model_snr: Number((data.koi_model_snr || Math.random() * 100).toFixed(2)),
+      stellar_radius: Number((data.stellar_radius || Math.random() * 2).toFixed(2)),
+      transit_duration: Number((data.transit_duration || Math.random() * 20).toFixed(2)),
+      insolation_flux: Number((data.insolation_flux || Math.random() * 1000).toFixed(2)),
+      ra: Number((data.ra || Math.random() * 360).toFixed(6)),
+      transit_depth: Number((data.transit_depth || Math.random() * 2).toFixed(4)),
+      planet_radius_missing: data.planet_radius_missing || false
     }
   };
 };
@@ -101,10 +113,11 @@ const convertBackendData = (data: BackendData): Planet[] => {
 export default function BatchAnalysis() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [planets, setPlanets] = useState<Planet[] | null>(null);
+  const [displayedPlanets, setDisplayedPlanets] = useState<Planet[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
-  const [displayedPlanets, setDisplayedPlanets] = useState<Planet[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -113,56 +126,93 @@ export default function BatchAnalysis() {
       setSelectedCategory(null);
       setCategoryCards([]);
       setDisplayedPlanets([]);
+      setError(null); // Clear any previous errors
+    }
+  };
+
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 5000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
+
+
+  const checkServerHealth = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/health');
+      return response.ok;
+    } catch (error) {
+      return false;
     }
   };
 
   const handleAnalyze = async () => {
-    if (!file) return;
+    if (!file) {
+      setError('Please select a file first');
+      return;
+    }
+
     setLoading(true);
-    
+    setError(null);
+
     try {
+      // Check server health
+      const isHealthy = await checkServerHealth();
+      if (!isHealthy) {
+        throw new Error('Cannot connect to server. Please ensure the backend is running.');
+      }
+
       // First upload the file
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadResponse = await fetch('http://localhost:8000/upload-file', {
+      const uploadResponse = await fetchWithTimeout('http://localhost:8000/upload-file', {
         method: 'POST',
         body: formData,
-      });
+      }, 30000);
 
       if (!uploadResponse.ok) {
-        throw new Error('File upload failed');
+        const errorData = await uploadResponse.json().catch(() => null);
+        throw new Error(
+          errorData?.detail || `File upload failed: ${uploadResponse.statusText}`
+        );
       }
 
       // Then retrain the model
-      const retrainResponse = await fetch('http://localhost:8000/retrain', {
+      const retrainResponse = await fetchWithTimeout('http://localhost:8000/retrain', {
         method: 'POST',
-        body: formData,
-      });
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }, 30000);
 
       if (!retrainResponse.ok) {
-        throw new Error('Analysis failed');
+        const errorData = await retrainResponse.json().catch(() => null);
+        throw new Error(
+          errorData?.detail || `Analysis failed: ${retrainResponse.statusText}`
+        );
       }
 
-      const result = await retrainResponse.json();
-      console.log('Analysis result:', result);
-
-      // For demonstration purposes, we'll create some sample data
-      // In production, this should come from backend data
-      const sampleData: BackendData = {};
-      for (let i = 1; i <= 20; i++) {
-        sampleData[`Planet-${i}`] = {
-          probability: Math.random(),
-          orbital_period: Math.random() * 1000,
-          transit_duration: Math.random() * 20,
-          planet_radius: Math.random() * 5,
-          stellar_mass: Math.random() * 2,
-          temperature: Math.random() * 500 - 100,
-          distance: Math.random() * 1000
-        };
+      let result;
+      try {
+        result = await retrainResponse.json();
+        console.log('Analysis result:', result);
+      } catch (error) {
+        throw new Error('Invalid response from server. Please try again.');
       }
 
-      const processedPlanets = convertBackendData(sampleData);
+      const processedPlanets = convertBackendData(result.data || {});
       setPlanets(processedPlanets);
       setDisplayedPlanets(processedPlanets);
       
@@ -175,9 +225,9 @@ export default function BatchAnalysis() {
       }));
       
       setCategoryCards(newCards);
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      alert('Failed to analyze the file. Please try again.');
+    } catch (err) {
+      console.error('Analysis failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to analyze the file. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -234,6 +284,17 @@ export default function BatchAnalysis() {
         </div>
 
         <div className="bg-gray-50 rounded-3xl p-8 md:p-12 border border-gray-200">
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <p className="flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                </svg>
+                {error}
+              </p>
+            </div>
+          )}
+
           <div className="mb-8">
             <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-gray-400 hover:bg-gray-100 transition-all bg-white">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -252,6 +313,38 @@ export default function BatchAnalysis() {
             </label>
           </div>
 
+          {categoryCards.length > 0 && displayedPlanets.length > 0 && !selectedCategory && (
+            <div className="border rounded-xl overflow-hidden mt-8">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Match</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temperature</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distance</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Radius</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {displayedPlanets.map((planet) => (
+                    <tr key={planet.name} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{planet.name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{(planet.probability * 100).toFixed(1)}%</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.equilibrium_temp}K</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.stellar_temp}K</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {planet.data.planet_radius}R⊕
+                        {planet.data.planet_radius_missing && ' (missing)'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.orbital_period}d</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
           {categoryCards.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
               {categoryCards.map((card) => {
@@ -286,10 +379,18 @@ export default function BatchAnalysis() {
                           <tr>
                             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Match</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temperature</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distance</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Radius</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orbital Period</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equilibrium Temp</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stellar Temp</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dec</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Planet Radius</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KOI Model SNR</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ST TMAG</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stellar Radius</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transit Duration</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Insolation Flux</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RA</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transit Depth</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -297,10 +398,21 @@ export default function BatchAnalysis() {
                             <tr key={planet.name} className="hover:bg-gray-50">
                               <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{planet.name}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{(planet.probability * 100).toFixed(1)}%</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.temperature}K</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.distance} ly</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.planet_radius}R⊕</td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.orbital_period}d</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.equilibrium_temp}K</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.stellar_temp}K</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.dec}°</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                {planet.data.planet_radius}R⊕
+                                {planet.data.planet_radius_missing && ' (missing)'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.koi_model_snr}</td>
+        
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.stellar_radius}R☉</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.transit_duration}h</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.insolation_flux}F⊕</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.ra}°</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.transit_depth}%</td>
                             </tr>
                           ))}
                         </tbody>

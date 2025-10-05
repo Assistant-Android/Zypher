@@ -3,18 +3,18 @@ import { Sparkles, Award } from 'lucide-react';
 import Confetti from './Confetti';
 
 const inputFields = [
-  { id: 'orbital_period', label: 'Orbital Period (days)', placeholder: '365.25' },
   { id: 'transit_duration', label: 'Transit Duration (hours)', placeholder: '13.0' },
-  { id: 'planet_radius', label: 'Planet Radius (Earth radii)', placeholder: '1.0' },
-  { id: 'semi_major_axis', label: 'Semi-major Axis (AU)', placeholder: '1.0' },
-  { id: 'eccentricity', label: 'Eccentricity', placeholder: '0.017' },
-  { id: 'stellar_mass', label: 'Stellar Mass (Solar masses)', placeholder: '1.0' },
+  { id: 'ra', label: 'Right Ascension (degrees)', placeholder: '150.5' },
   { id: 'stellar_radius', label: 'Stellar Radius (Solar radii)', placeholder: '1.0' },
+  { id: 'insolation_flux', label: 'Insolation Flux (Earth flux)', placeholder: '1.0' },
+  { id: 'dec', label: 'Declination (degrees)', placeholder: '-23.5' },
+  { id: 'planet_radius', label: 'Planet Radius (Earth radii)', placeholder: '1.0' },
   { id: 'stellar_temp', label: 'Stellar Temperature (K)', placeholder: '5778' },
-  { id: 'impact_parameter', label: 'Impact Parameter', placeholder: '0.5' },
-  { id: 'transit_depth', label: 'Transit Depth (ppm)', placeholder: '84' },
-  { id: 'signal_noise', label: 'Signal-to-Noise Ratio', placeholder: '15.0' },
-  { id: 'flux_variation', label: 'Flux Variation (%)', placeholder: '0.01' },
+  { id: 'koi_model_snr', label: 'KOI Model SNR', placeholder: '25.5' },
+  { id: 'transit_depth', label: 'Transit Depth (%)', placeholder: '0.01' },
+  { id: 'orbital_period', label: 'Orbital Period (days)', placeholder: '365.25' },
+  { id: 'equilibrium_temp', label: 'Equilibrium Temperature (K)', placeholder: '288' },
+  { id: 'planet_radius_missing', label: 'Planet Radius Missing', placeholder: 'false', type: 'checkbox' }
 ];
 
 export default function SingleDetection() {
@@ -28,17 +28,45 @@ export default function SingleDetection() {
     setLoading(true);
     setResult(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch('http://localhost:8000/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transit_duration: parseFloat(formData.transit_duration || '0'),
+          ra: parseFloat(formData.ra || '0'),
+          stellar_radius: parseFloat(formData.stellar_radius || '0'),
+          insolation_flux: parseFloat(formData.insolation_flux || '0'),
+          dec: parseFloat(formData.dec || '0'),
+          planet_radius: parseFloat(formData.planet_radius || '0'),
+          stellar_temp: parseFloat(formData.stellar_temp || '0'),
+          koi_model_snr: parseFloat(formData.koi_model_snr || '0'),
+          transit_depth: parseFloat(formData.transit_depth || '0'),
+          orbital_period: parseFloat(formData.orbital_period || '0'),
+          equilibrium_temp: parseFloat(formData.equilibrium_temp || '0'),
+          planet_radius_missing: formData.planet_radius_missing === 'true'
+        }),
+      });
 
-    const mockResult = Math.random() > 0.5 ? 'YES' : 'NO';
-    setResult(mockResult);
+      if (!response.ok) {
+        throw new Error('Prediction failed');
+      }
 
-    if (mockResult === 'YES') {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 5000);
+      const data = await response.json();
+      setResult(data.prediction === 1 ? 'YES' : 'NO');
+
+      if (data.prediction === 1) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+      }
+    } catch (error) {
+      console.error('Prediction error:', error);
+      setResult('Error occurred');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleChange = (id: string, value: string) => {

@@ -1,241 +1,300 @@
-"""
-FastAPI backend for ML workflow using XGBoost.
-Updated: /retrain now requires a user-uploaded CSV dataset.
-All original endpoints restored.
-"""
-
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import pandas as pd
+import numpy as np
 import os
 import io
 import threading
 import joblib
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
+import pickle
 
 # ML imports
-import numpy as np
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from xgboost import XGBClassifier
 
-# Scheduler
-from apscheduler.schedulers.background import BackgroundScheduler
+app = FastAPI(title="FastAPI XGBoost Backend")
 
-DATA_DIR = "data"
+# Add CORS middleware with specific configuration for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+# Define required columns for data processing
+REQUIRED_COLUMNS = [
+    'transit_duration', 'ra', 'stellar_radius', 'insolation_flux',
+    'dec', 'planet_radius', 'stellar_temp', 'koi_model_snr',
+    'transit_depth', 'orbital_period', 'equilibrium_temp',
+    'planet_radius_missing'
+]
+
+DERIVED_FEATURES = [
+    'radius_ratio', 'flux_temp_ratio', 'depth_radius_ratio',
+    'duration_period_ratio', 'radius_star_interaction',
+    'radius_temp_interaction', 'depth_radius_interaction',
+    'duration_radius_interaction', 'flux_temp_interaction',
+    'flux_radius_interaction'
+]
+
+# Use absolute paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+MODEL_DIR = os.path.join(BASE_DIR, "model")
+
 DATA_PATH = os.path.join(DATA_DIR, "main.csv")
 MODEL_PATH = os.path.join(DATA_DIR, "model.joblib")
+LLM_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest_model.pkl")
 
+# Create necessary directories
 os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 if not os.path.exists(DATA_PATH):
-    df_init = pd.DataFrame(columns=["feature1", "feature2", "target"])
+    # Initialize with all required columns including ML features
+    initial_columns = REQUIRED_COLUMNS + ['feature1', 'feature2', 'target', 'st_tmag', 'st_tmag_missing']
+    df_init = pd.DataFrame(columns=initial_columns)
     df_init.to_csv(DATA_PATH, index=False)
 
 data_lock = threading.Lock()
 model_lock = threading.Lock()
 
-app = FastAPI(title="FastAPI XGBoost Backend")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def validate_numeric_columns(df: pd.DataFrame) -> None:
+    """Validate that required columns contain numeric data"""
+    try:
+        # Convert numeric columns to float, handling missing values
+        numeric_cols = [col for col in REQUIRED_COLUMNS if col != 'planet_radius_missing']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Convert boolean columns
+        if 'planet_radius_missing' in df.columns:
+            df['planet_radius_missing'] = df['planet_radius_missing'].astype(bool)
+        if 'st_tmag_missing' in df.columns:
+            df['st_tmag_missing'] = df['st_tmag_missing'].astype(bool)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Error converting data types: {str(e)}")
 
-_model = None
-
-def load_model():
-    global _model
-    if os.path.exists(MODEL_PATH):
-        try:
-            _model = joblib.load(MODEL_PATH)
-        except Exception as e:
-            print("Failed to load model:", e)
-            _model = None
-    else:
-        _model = None
-
-load_model()
-
-class TuneRequest(BaseModel):
-    method: Optional[str] = "grid"
-    cv: Optional[int] = 3
-    max_evals: Optional[int] = 20
-
-def read_dataset() -> pd.DataFrame:
-    with data_lock:
-        return pd.read_csv(DATA_PATH)
-
-def append_dataframe(df: pd.DataFrame):
-    with data_lock:
-        existing = pd.read_csv(DATA_PATH)
-        combined = pd.concat([existing, df], ignore_index=True)
-        combined.to_csv(DATA_PATH, index=False)
+def calculate_derived_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate derived features from raw input features"""
+    df = df.copy()
+    try:
+        # Calculate ratios
+        if all(col in df.columns for col in ['planet_radius', 'stellar_radius']):
+            df['radius_ratio'] = df['planet_radius'] / df['stellar_radius']
+        if all(col in df.columns for col in ['insolation_flux', 'stellar_temp']):
+            df['flux_temp_ratio'] = df['insolation_flux'] / df['stellar_temp']
+        if all(col in df.columns for col in ['transit_depth', 'planet_radius']):
+            df['depth_radius_ratio'] = df['transit_depth'] / df['planet_radius']
+        if all(col in df.columns for col in ['transit_duration', 'orbital_period']):
+            df['duration_period_ratio'] = df['transit_duration'] / df['orbital_period']
+        
+        # Calculate interactions
+        if all(col in df.columns for col in ['planet_radius', 'stellar_radius']):
+            df['radius_star_interaction'] = df['planet_radius'] * df['stellar_radius']
+        if all(col in df.columns for col in ['planet_radius', 'stellar_temp']):
+            df['radius_temp_interaction'] = df['planet_radius'] * df['stellar_temp']
+        if all(col in df.columns for col in ['transit_depth', 'planet_radius']):
+            df['depth_radius_interaction'] = df['transit_depth'] * df['planet_radius']
+        if all(col in df.columns for col in ['transit_duration', 'planet_radius']):
+            df['duration_radius_interaction'] = df['transit_duration'] * df['planet_radius']
+        if all(col in df.columns for col in ['insolation_flux', 'stellar_temp']):
+            df['flux_temp_interaction'] = df['insolation_flux'] * df['stellar_temp']
+        if all(col in df.columns for col in ['insolation_flux', 'planet_radius']):
+            df['flux_radius_interaction'] = df['insolation_flux'] * df['planet_radius']
+    except Exception as e:
+        print(f"Warning: Error calculating some derived features: {str(e)}")
+    
+    return df
 
 def train_model(df: pd.DataFrame, save: bool = True) -> Dict[str, Any]:
+    """Train the model with the provided data"""
     with model_lock:
-        if "target" not in df.columns:
-            raise ValueError("Dataset must contain a 'target' column.")
-        df = df.dropna(subset=["target"])
-        if df.shape[0] < 5:
-            raise ValueError("Not enough data to train.")
-
-        X = df.drop(columns=["target"])
-        y = df["target"]
-
-        X = X.fillna(0)
-        for col in X.select_dtypes(include=[object]).columns:
-            X[col] = X[col].astype('category').cat.codes
-
-        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
-        model.fit(X_train, y_train)
-
-        preds = model.predict(X_val)
-        acc = float(accuracy_score(y_val, preds))
-
-        if save:
-            joblib.dump(model, MODEL_PATH)
-            load_model()
-
-        return {"accuracy": acc, "n_train": len(X_train), "n_val": len(X_val), "model_path": MODEL_PATH}
-
-@app.get("/")
-def home():
-    return {"message": "✅ FastAPI XGBoost backend is running!"}
-
-@app.post("/upload-row")
-async def upload_row(file: Optional[UploadFile] = File(None), row: Optional[Dict] = None):
-    if file is None and row is None:
-        raise HTTPException(status_code=400, detail="Provide either Excel file or JSON row.")
-
-    if file is not None:
-        contents = await file.read()
         try:
-            df = pd.read_excel(io.BytesIO(contents))
+            # Prepare features
+            feature_cols = REQUIRED_COLUMNS + DERIVED_FEATURES
+            feature_cols = [col for col in feature_cols if col in df.columns]
+            feature_cols.remove('planet_radius_missing')  # Remove boolean column
+            
+            X = df[feature_cols].fillna(0)
+            if 'target' not in df.columns:
+                raise ValueError("Dataset must contain a 'target' column")
+            y = df['target'].fillna(0)
+            
+            # Split data
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            # Train model
+            model = XGBClassifier(
+                use_label_encoder=False,
+                eval_metric='logloss',
+                n_estimators=100,
+                max_depth=6,
+                objective='binary:logistic',
+                base_score=0.5  # Set base_score to 0.5 for binary classification
+            )
+            
+            # Convert target to binary values (0 or 1)
+            y_train = y_train.astype(int)
+            y_val = y_val.astype(int)
+            
+            model.fit(X_train, y_train)
+            
+            # Evaluate
+            val_preds = model.predict(X_val)
+            accuracy = float(accuracy_score(y_val, val_preds))
+            
+            # Save if requested
+            if save:
+                joblib.dump(model, MODEL_PATH)
+            
+            return {
+                "accuracy": accuracy,
+                "n_train": len(X_train),
+                "n_val": len(X_val),
+                "features_used": feature_cols
+            }
+            
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {e}")
-    else:
-        try:
-            df = pd.DataFrame([row])
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to parse JSON: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Model training failed: {str(e)}"
+            )
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify server is running"""
+    return {"status": "ok", "message": "Server is running"}
+
+@app.post("/retrain")
+async def retrain_model():
+    """Retrain the model with the current dataset"""
     try:
-        append_dataframe(df)
+        # Read the current dataset
+        with data_lock:
+            df = pd.read_csv(DATA_PATH)
+            if df.empty:
+                raise HTTPException(status_code=400, detail="No data available for training")
+        
+        # Train the model
+        result = train_model(df, save=True)
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Model retrained successfully",
+                "details": result
+            }
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Append failed: {e}")
-
-    return {"status": "ok", "n_rows_added": len(df)}
+        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):
-    contents = await file.read()
+    """Handle file upload and process the data"""
+    print(f"Received file upload request: {file.filename}")  # Debug log
+    
     try:
-        df = pd.read_csv(io.BytesIO(contents))
+        # Validate file extension
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+        
+        # Read file contents
+        contents = await file.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail="File is empty")
+        
+        # Parse CSV
+        try:
+            df = pd.read_csv(io.BytesIO(contents))
+        except pd.errors.EmptyDataError:
+            raise HTTPException(status_code=400, detail="The CSV file is empty")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+        
+        # Process the dataframe
+        try:
+            # Ensure numeric columns are properly typed
+            validate_numeric_columns(df)
+            
+            # Calculate derived features
+            df = calculate_derived_features(df)
+            
+            # Handle missing values
+            for col in df.columns:
+                if col not in ['planet_radius_missing', 'st_tmag_missing']:
+                    df[col] = df[col].fillna(df[col].mean() if df[col].dtype.kind in 'fc' else 0)
+            
+            # Append to existing data
+            with data_lock:
+                if os.path.exists(DATA_PATH):
+                    existing = pd.read_csv(DATA_PATH)
+                    # Ensure all columns from existing data are present
+                    for col in existing.columns:
+                        if col not in df.columns:
+                            df[col] = np.nan
+                    # Reorder columns to match existing
+                    df = df[existing.columns]
+                df.to_csv(DATA_PATH, index=False)
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message": "File processed successfully",
+                    "rows_processed": len(df),
+                    "columns": list(df.columns)
+                }
+            )
+        
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to process data: {str(e)}")
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {e}")
-
-    try:
-        append_dataframe(df)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Append failed: {e}")
-
-    return {"status": "ok", "n_rows_added": len(df)}
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.get("/download")
-def download_dataset():
-    df = read_dataset()
-    stream = io.StringIO()
-    df.to_csv(stream, index=False)
-    stream.seek(0)
-    return StreamingResponse(iter([stream.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=main.csv"})
-
-@app.post("/retrain")
-async def retrain_with_upload(file: UploadFile = File(...)):
-    contents = await file.read()
+async def download_dataset():
+    """Download the current dataset as CSV"""
     try:
-        df = pd.read_csv(io.BytesIO(contents))
+        with data_lock:
+            if not os.path.exists(DATA_PATH):
+                raise HTTPException(status_code=404, detail="No data available for download")
+            
+            df = pd.read_csv(DATA_PATH)
+            if df.empty:
+                raise HTTPException(status_code=404, detail="No data available for download")
+            
+            # Create a string buffer and write the CSV to it
+            buffer = io.StringIO()
+            df.to_csv(buffer, index=False)
+            buffer.seek(0)
+            
+            # Return the CSV as a streaming response
+            return StreamingResponse(
+                iter([buffer.getvalue()]),
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": "attachment; filename=exoplanet_data.csv"
+                }
+            )
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read CSV file: {e}")
-
-    try:
-        result = train_model(df, save=True)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Retraining failed: {e}")
-
-    return JSONResponse(content={"status": "ok", "result": result})
-
-@app.post("/tune")
-def tune_hyperparams(req: TuneRequest):
-    with model_lock:
-        df = read_dataset()
-        if "target" not in df.columns:
-            raise HTTPException(status_code=400, detail="Dataset must contain 'target' column.")
-        df = df.dropna(subset=["target"])
-        if df.shape[0] < 10:
-            raise HTTPException(status_code=400, detail="Not enough data for tuning.")
-
-        X = df.drop(columns=["target"]).fillna(0)
-        for col in X.select_dtypes(include=[object]).columns:
-            X[col] = X[col].astype('category').cat.codes
-        y = df['target']
-
-        param_grid = {
-            'n_estimators': [50, 100],
-            'max_depth': [3, 6],
-            'learning_rate': [0.1, 0.01]
-        }
-
-        model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
-        grid = GridSearchCV(model, param_grid, cv=req.cv, n_jobs=1, verbose=1)
-        grid.fit(X, y)
-
-        best = grid.best_params_
-        best_score = float(grid.best_score_)
-        joblib.dump(grid.best_estimator_, MODEL_PATH)
-        load_model()
-
-        return {"status": "ok", "best_params": best, "best_score": best_score}
-
-@app.get("/predict")
-def predict_row():
-    if _model is None:
-        raise HTTPException(status_code=400, detail="Model not available. Train a model first.")
-    df = read_dataset()
-    X = df.drop(columns=[col for col in df.columns if col == 'target']).fillna(0)
-    for col in X.select_dtypes(include=[object]).columns:
-        X[col] = X[col].astype('category').cat.codes
-    preds = _model.predict(X)
-    return {"n_rows": len(X), "sample_prediction": int(preds[0])}
-
-scheduler = BackgroundScheduler()
-
-def scheduled_retrain():
-    print("Scheduled retrain running...")
-    try:
-        df = read_dataset()
-        res = train_model(df, save=True)
-        print("Scheduled retrain finished:", res)
-    except Exception as e:
-        print("Scheduled retrain failed:", e)
-
-scheduler.add_job(scheduled_retrain, 'interval', hours=24, id='daily_retrain', replace_existing=True)
-
-@app.on_event("startup")
-def startup_event():
-    print("Starting scheduler...")
-    scheduler.start()
-
-@app.on_event("shutdown")
-def shutdown_event():
-    print("Shutting down scheduler...")
-    scheduler.shutdown(wait=False)
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="debug")

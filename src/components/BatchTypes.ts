@@ -12,11 +12,17 @@ export type PlanetCharacteristics = {
 
 export type PlanetData = {
   orbital_period: number;
-  transit_duration: number;
+  equilibrium_temp: number;
+  stellar_temp: number;
+  dec: number;
   planet_radius: number;
-  stellar_mass: number;
-  temperature: number;
-  distance: number;
+  koi_model_snr: number;
+  stellar_radius: number;
+  transit_duration: number;
+  insolation_flux: number;
+  ra: number;
+  transit_depth: number;
+  planet_radius_missing: boolean;
 };
 
 export interface Planet {
