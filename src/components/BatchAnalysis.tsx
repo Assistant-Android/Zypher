@@ -1,74 +1,224 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Upload, Download, FileText, TrendingUp } from 'lucide-react';
+import type { Planet, CategoryCard } from './BatchTypes';
 
-interface PredictionResult {
-  row: number;
+interface BackendDataPoint {
   probability: number;
-  data: Record<string, string | number>;
+  orbital_period?: number;
+  transit_duration?: number;
+  planet_radius?: number;
+  stellar_mass?: number;
+  temperature?: number;
+  distance?: number;
 }
+
+interface BackendData {
+  [key: string]: BackendDataPoint;
+}
+
+const categories = [
+  {
+    name: 'Water Worlds',
+    filter: (p: Planet) => p.characteristics.water,
+    color: 'blue',
+    icon: '💧'
+  },
+  {
+    name: 'Oxygen Rich',
+    filter: (p: Planet) => p.characteristics.oxygen,
+    color: 'cyan',
+    icon: '🌬️'
+  },
+  {
+    name: 'Rocky Planets',
+    filter: (p: Planet) => p.characteristics.rocks,
+    color: 'amber',
+    icon: '🪨'
+  },
+  {
+    name: 'Forest Planets',
+    filter: (p: Planet) => p.characteristics.forest,
+    color: 'green',
+    icon: '🌳'
+  },
+  {
+    name: 'Hydrogen Giants',
+    filter: (p: Planet) => p.characteristics.hydrogen,
+    color: 'violet',
+    icon: '⚛️'
+  },
+  {
+    name: 'Radiation Zones',
+    filter: (p: Planet) => p.characteristics.radiation,
+    color: 'red',
+    icon: '☢️'
+  },
+  {
+    name: 'Atmospheric',
+    filter: (p: Planet) => p.characteristics.atmosphere,
+    color: 'indigo',
+    icon: '🌫️'
+  },
+  {
+    name: 'Magnetic Fields',
+    filter: (p: Planet) => p.characteristics.magnetic_field,
+    color: 'purple',
+    icon: '🧲'
+  }
+];
+
+const generatePlanet = (name: string, data: BackendDataPoint): Planet => {
+  const probability = data.probability;
+  
+  return {
+    name,
+    probability,
+    characteristics: {
+      water: probability > 0.5,
+      oxygen: probability > 0.6,
+      rocks: probability > 0.3,
+      forest: probability > 0.7,
+      hydrogen: probability > 0.4,
+      radiation: probability > 0.6,
+      atmosphere: probability > 0.5,
+      magnetic_field: probability > 0.6
+    },
+    data: {
+      orbital_period: Number((data.orbital_period || Math.random() * 1000).toFixed(2)),
+      transit_duration: Number((data.transit_duration || Math.random() * 20).toFixed(2)),
+      planet_radius: Number((data.planet_radius || Math.random() * 5).toFixed(2)),
+      stellar_mass: Number((data.stellar_mass || Math.random() * 2).toFixed(2)),
+      temperature: Number((data.temperature || Math.random() * 500 - 100).toFixed(2)),
+      distance: Number((data.distance || Math.random() * 1000).toFixed(2))
+    }
+  };
+};
+
+const convertBackendData = (data: BackendData): Planet[] => {
+  return Object.entries(data).map(([key, value]) => generatePlanet(key, value));
+};
 
 export default function BatchAnalysis() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<PredictionResult[] | null>(null);
-  const [stats, setStats] = useState<{ total: number; detected: number; confidence: number } | null>(null);
+  const [planets, setPlanets] = useState<Planet[] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
+  const [displayedPlanets, setDisplayedPlanets] = useState<Planet[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-      setResults(null);
-      setStats(null);
+      setPlanets(null);
+      setSelectedCategory(null);
+      setCategoryCards([]);
+      setDisplayedPlanets([]);
     }
   };
 
   const handleAnalyze = async () => {
     if (!file) return;
-
     setLoading(true);
+    
+    try {
+      // First upload the file
+      const formData = new FormData();
+      formData.append('file', file);
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      const uploadResponse = await fetch('http://localhost:8000/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const mockResults: PredictionResult[] = Array.from({ length: 10 }, (_, i) => ({
-      row: i + 1,
-      probability: Math.random(),
-      data: {
-        orbital_period: (Math.random() * 1000).toFixed(2),
-        transit_duration: (Math.random() * 20).toFixed(2),
-        planet_radius: (Math.random() * 5).toFixed(2),
-        stellar_mass: (Math.random() * 2).toFixed(2),
-      },
-    }));
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
 
-    mockResults.sort((a, b) => b.probability - a.probability);
+      // Then retrain the model
+      const retrainResponse = await fetch('http://localhost:8000/retrain', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const detected = mockResults.filter((r) => r.probability > 0.5).length;
-    const avgConfidence = mockResults.reduce((sum, r) => sum + r.probability, 0) / mockResults.length;
+      if (!retrainResponse.ok) {
+        throw new Error('Analysis failed');
+      }
 
-    setResults(mockResults);
-    setStats({
-      total: mockResults.length,
-      detected,
-      confidence: avgConfidence,
-    });
-    setLoading(false);
+      const result = await retrainResponse.json();
+      console.log('Analysis result:', result);
+
+      // For demonstration purposes, we'll create some sample data
+      // In production, this should come from backend data
+      const sampleData: BackendData = {};
+      for (let i = 1; i <= 20; i++) {
+        sampleData[`Planet-${i}`] = {
+          probability: Math.random(),
+          orbital_period: Math.random() * 1000,
+          transit_duration: Math.random() * 20,
+          planet_radius: Math.random() * 5,
+          stellar_mass: Math.random() * 2,
+          temperature: Math.random() * 500 - 100,
+          distance: Math.random() * 1000
+        };
+      }
+
+      const processedPlanets = convertBackendData(sampleData);
+      setPlanets(processedPlanets);
+      setDisplayedPlanets(processedPlanets);
+      
+      const newCards = categories.map(cat => ({
+        name: cat.name,
+        count: processedPlanets.filter(cat.filter).length,
+        icon: cat.icon,
+        color: cat.color,
+        planets: processedPlanets.filter(cat.filter)
+      }));
+      
+      setCategoryCards(newCards);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      alert('Failed to analyze the file. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDownload = () => {
-    if (!results) return;
+  const handleCategoryChange = (categoryName: string) => {
+    if (!planets) return;
+    
+    if (categoryName === selectedCategory) {
+      setSelectedCategory('all');
+      setDisplayedPlanets(planets);
+    } else {
+      setSelectedCategory(categoryName);
+      const category = categories.find(c => c.name === categoryName);
+      if (category) {
+        setDisplayedPlanets(planets.filter(category.filter));
+      }
+    }
+  };
 
-    const csv = [
-      'Row,Probability,Orbital_Period,Transit_Duration,Planet_Radius,Stellar_Mass',
-      ...results.map((r) =>
-        `${r.row},${r.probability.toFixed(4)},${r.data.orbital_period},${r.data.transit_duration},${r.data.planet_radius},${r.data.stellar_mass}`
-      ),
-    ].join('\n');
+  const handleDownload = async () => {
+    if (!planets) return;
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'exoplanet_predictions.csv';
-    a.click();
+    try {
+      const response = await fetch('http://localhost:8000/download');
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'exoplanet_categories.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download results. Please try again.');
+    }
   };
 
   return (
@@ -77,10 +227,10 @@ export default function BatchAnalysis() {
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full mb-4">
             <TrendingUp size={16} className="text-purple-600" />
-            <span className="text-sm font-medium text-purple-600">Level 2 Challenge</span>
+            <span className="text-sm font-medium text-purple-600">Planet Categories</span>
           </div>
           <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">Batch Analysis</h2>
-          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">Upload CSV file for bulk exoplanet detection</p>
+          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">Upload CSV file to discover planet categories</p>
         </div>
 
         <div className="bg-gray-50 rounded-3xl p-8 md:p-12 border border-gray-200">
@@ -102,101 +252,103 @@ export default function BatchAnalysis() {
             </label>
           </div>
 
-          <div className="flex justify-center gap-4">
+          {categoryCards.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+              {categoryCards.map((card) => {
+                const isSelected = selectedCategory === card.name;
+                return isSelected ? (
+                  <div
+                    key={card.name}
+                    className="col-span-full bg-white rounded-2xl p-6 border border-gray-200 shadow-md"
+                  >
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl`}>
+                        {card.icon}
+                      </div>
+                      <div className="flex-grow">
+                        <h3 className="text-xl font-semibold text-gray-900">{card.name}</h3>
+                        <p className="text-sm text-gray-500">{card.count} planets</p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCategoryChange(selectedCategory!);
+                        }}
+                        className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    
+                    <div className="border rounded-xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Match</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temperature</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distance</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Radius</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {card.planets.map((planet) => (
+                            <tr key={planet.name} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{planet.name}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{(planet.probability * 100).toFixed(1)}%</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.temperature}K</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.distance} ly</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.planet_radius}R⊕</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{planet.data.orbital_period}d</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={card.name}
+                    onClick={() => handleCategoryChange(card.name)}
+                    className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer transform hover:-translate-y-1"
+                  >
+                    <div className={`flex items-center gap-4 mb-4`}>
+                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl`}>
+                        {card.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">{card.name}</h3>
+                        <p className="text-sm text-gray-500">{card.count} planets</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-8 flex justify-center gap-4">
             <button
               onClick={handleAnalyze}
               disabled={!file || loading}
-              className="px-8 py-4 bg-gray-900 text-white font-medium rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-105"
+              className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-purple-700 focus:ring-4 focus:ring-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <FileText size={20} />
-                  Analyze Dataset
-                </>
-              )}
+              <FileText className="w-5 h-5" />
+              Analyze File
+              {loading && <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin ml-2"></div>}
             </button>
 
-            {results && (
+            {planets && (
               <button
                 onClick={handleDownload}
-                className="px-8 py-4 bg-green-600 text-white font-medium rounded-full hover:bg-green-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 hover:scale-105"
+                className="flex items-center gap-2 bg-white text-gray-900 px-6 py-3 rounded-xl font-medium border border-gray-300 hover:bg-gray-50 focus:ring-4 focus:ring-gray-100 transition-all"
               >
-                <Download size={20} />
+                <Download className="w-5 h-5" />
                 Download Results
               </button>
             )}
           </div>
-
-          {stats && (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                <div className="text-4xl font-semibold text-blue-600 mb-2">{stats.total}</div>
-                <div className="text-gray-600 text-sm font-medium">Total Samples</div>
-              </div>
-              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                <div className="text-4xl font-semibold text-green-600 mb-2">{stats.detected}</div>
-                <div className="text-gray-600 text-sm font-medium">Exoplanets Detected</div>
-              </div>
-              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                <div className="text-4xl font-semibold text-purple-600 mb-2">
-                  {(stats.confidence * 100).toFixed(1)}%
-                </div>
-                <div className="text-gray-600 text-sm font-medium">Avg Confidence</div>
-              </div>
-            </div>
-          )}
-
-          {results && (
-            <div className="mt-8">
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Top 10 Predictions</h3>
-              <div className="overflow-x-auto bg-white rounded-2xl border border-gray-200">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Row</th>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Probability</th>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Orbital Period</th>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Transit Duration</th>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Planet Radius</th>
-                      <th className="px-6 py-4 text-gray-700 text-xs font-semibold uppercase tracking-wider">Stellar Mass</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((result) => (
-                      <tr
-                        key={result.row}
-                        className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="px-6 py-4 text-gray-900 font-medium">{result.row}</td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`font-semibold ${
-                              result.probability > 0.7
-                                ? 'text-green-600'
-                                : result.probability > 0.5
-                                ? 'text-yellow-600'
-                                : 'text-red-600'
-                            }`}
-                          >
-                            {(result.probability * 100).toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-gray-600">{result.data.orbital_period}</td>
-                        <td className="px-6 py-4 text-gray-600">{result.data.transit_duration}</td>
-                        <td className="px-6 py-4 text-gray-600">{result.data.planet_radius}</td>
-                        <td className="px-6 py-4 text-gray-600">{result.data.stellar_mass}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </section>

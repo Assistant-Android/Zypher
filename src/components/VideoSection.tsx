@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 export default function VideoSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [lastScrollTime, setLastScrollTime] = useState(Date.now());
-  const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSticky, setIsSticky] = useState(false);
+  const [scrollLocked, setScrollLocked] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -12,99 +12,78 @@ export default function VideoSection() {
     if (!video || !section) return;
 
     const handleScroll = () => {
-      setLastScrollTime(Date.now());
-
       const rect = section.getBoundingClientRect();
       const sectionTop = rect.top;
       const sectionHeight = rect.height;
       const windowHeight = window.innerHeight;
+      const sectionBottom = sectionTop + sectionHeight;
 
-      if (sectionTop < windowHeight && sectionTop + sectionHeight > 0) {
+      // Keep video sticky while section is visible
+      setIsSticky(sectionTop < 0 && sectionBottom > 0);
+
+      if (sectionTop < windowHeight && sectionBottom > 0) {
         const scrollProgress = Math.max(
           0,
-          Math.min(1, (windowHeight - sectionTop) / (windowHeight + sectionHeight))
+          Math.min(1, -sectionTop / (sectionHeight - windowHeight))
         );
 
         const videoDuration = video.duration;
         if (videoDuration && !isNaN(videoDuration)) {
           video.currentTime = scrollProgress * videoDuration;
+
+          // Lock scroll if reached end
+          if (scrollProgress >= 1 && !scrollLocked) {
+            document.body.style.overflow = "hidden";
+            setScrollLocked(true);
+          } else if (scrollProgress < 1 && scrollLocked) {
+            document.body.style.overflow = "";
+            setScrollLocked(false);
+          }
         }
       }
     };
 
-    const checkAutoplay = () => {
-      const timeSinceLastScroll = Date.now() - lastScrollTime;
-      if (timeSinceLastScroll > 5000 && video.paused) {
-        video.play();
-      }
-    };
-
-    video.addEventListener('loadedmetadata', handleScroll);
-    window.addEventListener('scroll', handleScroll);
-
-    autoplayTimerRef.current = setInterval(checkAutoplay, 1000);
+    window.addEventListener("scroll", handleScroll);
+    video.addEventListener("loadedmetadata", handleScroll);
 
     handleScroll();
 
     return () => {
-      video.removeEventListener('loadedmetadata', handleScroll);
-      window.removeEventListener('scroll', handleScroll);
-      if (autoplayTimerRef.current) {
-        clearInterval(autoplayTimerRef.current);
-      }
+      window.removeEventListener("scroll", handleScroll);
+      video.removeEventListener("loadedmetadata", handleScroll);
+      document.body.style.overflow = "";
     };
-  }, [lastScrollTime]);
+  }, [scrollLocked]);
 
   return (
     <section
       id="about"
       ref={sectionRef}
-      className="min-h-screen bg-gray-50 py-24 px-6 flex items-center justify-center"
+      className="relative min-h-[150vh] bg-gray-50 flex flex-col items-center justify-center"
     >
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">About Our Mission</h2>
-          <p className="text-lg text-gray-600 font-light">
-            Scroll to explore or let it play automatically
-          </p>
-        </div>
-
-        <div className="relative rounded-3xl overflow-hidden shadow-xl border border-gray-200">
+      {/* Fixed Video Container */}
+      <div
+        className={`${
+          isSticky ? "sticky top-0 z-40" : ""
+        } w-full h-screen flex items-center justify-center bg-transparent px-4`}
+      >
+        <div className="relative w-full max-w-6xl mx-auto h-[75vh] rounded-[2rem] overflow-hidden shadow-2xl">
           <video
             ref={videoRef}
-            className="w-full"
+            className="w-full h-full object-cover"
             muted
             playsInline
             preload="auto"
+            style={{
+              borderRadius: "2rem",
+              transform: isSticky ? "scale(0.98)" : "scale(1)",
+              transition: "transform 0.3s ease-out"
+            }}
           >
-            <source
-              src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-              type="video/mp4"
-            />
+            <source src="assets/explain.mp4" type="video/mp4" />
           </video>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-8">
-            <h3 className="text-2xl font-semibold text-white mb-2">
-              Discovering New Worlds
-            </h3>
-            <p className="text-gray-200 font-light">
-              Using AI to identify exoplanets and expand our understanding of the universe
-            </p>
-          </div>
-        </div>
 
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-            <h4 className="text-3xl font-semibold text-gray-900 mb-2">5000+</h4>
-            <p className="text-gray-600 font-medium">Exoplanets Discovered</p>
-          </div>
-          <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-            <h4 className="text-3xl font-semibold text-gray-900 mb-2">96%</h4>
-            <p className="text-gray-600 font-medium">Detection Accuracy</p>
-          </div>
-          <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-            <h4 className="text-3xl font-semibold text-gray-900 mb-2">24/7</h4>
-            <p className="text-gray-600 font-medium">Continuous Analysis</p>
-          </div>
+          {/* Overlay Text */}
         </div>
       </div>
     </section>

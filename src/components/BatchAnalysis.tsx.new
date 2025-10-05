@@ -1,0 +1,240 @@
+import { useState } from 'react';
+import { Upload, Download, FileText, TrendingUp } from 'lucide-react';
+import type { Planet, CategoryCard } from './BatchTypes';
+
+export default function BatchAnalysis() {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [planets, setPlanets] = useState<Planet[] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setPlanets(null);
+      setSelectedCategory(null);
+      setCategoryCards([]);
+    }
+  };
+
+  const generateMockPlanet = (id: number): Planet => ({
+    name: `Planet-${id}`,
+    probability: Math.random(),
+    characteristics: {
+      water: Math.random() > 0.5,
+      oxygen: Math.random() > 0.6,
+      rocks: Math.random() > 0.3,
+      forest: Math.random() > 0.7,
+      hydrogen: Math.random() > 0.4,
+      radiation: Math.random() > 0.6,
+      atmosphere: Math.random() > 0.5,
+      magnetic_field: Math.random() > 0.6
+    },
+    data: {
+      orbital_period: Number((Math.random() * 1000).toFixed(2)),
+      transit_duration: Number((Math.random() * 20).toFixed(2)),
+      planet_radius: Number((Math.random() * 5).toFixed(2)),
+      stellar_mass: Number((Math.random() * 2).toFixed(2)),
+      temperature: Number((Math.random() * 500 - 100).toFixed(2)),
+      distance: Number((Math.random() * 1000).toFixed(2))
+    }
+  });
+
+  const handleAnalyze = async () => {
+    if (!file) return;
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const mockPlanets: Planet[] = Array.from({ length: 20 }, (_, i) => generateMockPlanet(i + 1));
+    setPlanets(mockPlanets);
+    
+    // Create category cards
+    const categories = [
+      {
+        name: 'Water Worlds',
+        filter: (p: Planet) => p.characteristics.water,
+        color: 'blue',
+        icon: '💧'
+      },
+      {
+        name: 'Oxygen Rich',
+        filter: (p: Planet) => p.characteristics.oxygen,
+        color: 'cyan',
+        icon: '🌬️'
+      },
+      {
+        name: 'Rocky Planets',
+        filter: (p: Planet) => p.characteristics.rocks,
+        color: 'amber',
+        icon: '🪨'
+      },
+      {
+        name: 'Forest Planets',
+        filter: (p: Planet) => p.characteristics.forest,
+        color: 'green',
+        icon: '🌳'
+      },
+      {
+        name: 'Hydrogen Giants',
+        filter: (p: Planet) => p.characteristics.hydrogen,
+        color: 'violet',
+        icon: '⚛️'
+      },
+      {
+        name: 'Radiation Zones',
+        filter: (p: Planet) => p.characteristics.radiation,
+        color: 'red',
+        icon: '☢️'
+      },
+      {
+        name: 'Atmospheric',
+        filter: (p: Planet) => p.characteristics.atmosphere,
+        color: 'indigo',
+        icon: '🌫️'
+      },
+      {
+        name: 'Magnetic Fields',
+        filter: (p: Planet) => p.characteristics.magnetic_field,
+        color: 'purple',
+        icon: '🧲'
+      }
+    ];
+
+    const newCards = categories.map(cat => ({
+      name: cat.name,
+      count: mockPlanets.filter(cat.filter).length,
+      icon: cat.icon,
+      color: cat.color,
+      planets: mockPlanets.filter(cat.filter)
+    }));
+
+    setCategoryCards(newCards);
+    setLoading(false);
+  };
+
+  const handleDownload = () => {
+    if (!planets) return;
+
+    const csv = [
+      'Name,Probability,Water,Oxygen,Rocks,Forest,Hydrogen,Radiation,Temperature,Distance',
+      ...planets.map((p) =>
+        `${p.name},${p.probability.toFixed(4)},${p.characteristics.water},${p.characteristics.oxygen},${p.characteristics.rocks},${p.characteristics.forest},${p.characteristics.hydrogen},${p.characteristics.radiation},${p.data.temperature},${p.data.distance}`
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'exoplanet_categories.csv';
+    a.click();
+  };
+
+  return (
+    <section id="batch" className="min-h-screen bg-white py-24 px-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full mb-4">
+            <TrendingUp size={16} className="text-purple-600" />
+            <span className="text-sm font-medium text-purple-600">Planet Categories</span>
+          </div>
+          <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">Batch Analysis</h2>
+          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">Upload CSV file to discover planet categories</p>
+        </div>
+
+        <div className="bg-gray-50 rounded-3xl p-8 md:p-12 border border-gray-200">
+          <div className="mb-8">
+            <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-gray-400 hover:bg-gray-100 transition-all bg-white">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <Upload className="w-12 h-12 mb-4 text-gray-400" strokeWidth={1.5} />
+                <p className="mb-2 text-base font-medium text-gray-900">
+                  {file ? file.name : 'Click to upload CSV file'}
+                </p>
+                <p className="text-sm text-gray-500">CSV files only</p>
+              </div>
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+          </div>
+
+          {categoryCards.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+              {categoryCards.map((card) => (
+                <div
+                  key={card.name}
+                  onClick={() => setSelectedCategory(card.name)}
+                  className={`bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer transform hover:-translate-y-1 ${
+                    selectedCategory === card.name ? `ring-2 ring-${card.color}-500` : ''
+                  }`}
+                >
+                  <div className={`flex items-center gap-4 mb-4`}>
+                    <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl`}>
+                      {card.icon}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{card.name}</h3>
+                      <p className="text-sm text-gray-500">{card.count} planets</p>
+                    </div>
+                  </div>
+                  
+                  {selectedCategory === card.name && (
+                    <div className="mt-4 border-t border-gray-100 pt-4">
+                      <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
+                        {card.planets.map((planet) => (
+                          <div 
+                            key={planet.name} 
+                            className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-medium">{planet.name}</span>
+                              <span className="text-sm text-gray-500">
+                                {(planet.probability * 100).toFixed(1)}% match
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 grid grid-cols-2 gap-2">
+                              <p>Temp: {planet.data.temperature}K</p>
+                              <p>Distance: {planet.data.distance} ly</p>
+                              <p>Radius: {planet.data.planet_radius}R⊕</p>
+                              <p>Period: {planet.data.orbital_period}d</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-8 flex justify-center gap-4">
+            <button
+              onClick={handleAnalyze}
+              disabled={!file || loading}
+              className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-purple-700 focus:ring-4 focus:ring-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileText className="w-5 h-5" />
+              Analyze File
+              {loading && <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin ml-2"></div>}
+            </button>
+
+            {planets && (
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 bg-white text-gray-900 px-6 py-3 rounded-xl font-medium border border-gray-300 hover:bg-gray-50 focus:ring-4 focus:ring-gray-100 transition-all"
+              >
+                <Download className="w-5 h-5" />
+                Download Results
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
