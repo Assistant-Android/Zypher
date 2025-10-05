@@ -272,15 +272,25 @@ export default function BatchAnalysis() {
   };
 
   return (
-    <section id="batch" className="min-h-screen bg-white py-24 px-6">
-      <div className="max-w-7xl mx-auto">
+        <section 
+      id="batch" 
+      style={{
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+      className="min-h-screen py-24 px-6"
+    >
+      <div className="absolute inset-0 bg-[url('/stars_bg.jpg')] opacity-100 pointer-events-none bg-cover"></div>
+      <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full mb-4">
-            <TrendingUp size={16} className="text-purple-600" />
-            <span className="text-sm font-medium text-purple-600">Planet Categories</span>
-          </div>
-          <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">Batch Analysis</h2>
-          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">Upload CSV file to discover planet categories</p>
+        
+          <h2 className="text-5xl md:text-6xl font-semibold text-white mb-4 tracking-tight">
+            Batch Analysis
+          </h2>
+          <p className="text-lg text-gray-400 font-light max-w-2xl mx-auto">
+            Analyze multiple exoplanets at once by uploading a CSV file with planetary parameters
+          </p>
         </div>
 
         <div className="bg-gray-50 rounded-3xl p-8 md:p-12 border border-gray-200">
@@ -423,15 +433,15 @@ export default function BatchAnalysis() {
                   <div
                     key={card.name}
                     onClick={() => handleCategoryChange(card.name)}
-                    className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer transform hover:-translate-y-1"
+                    className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-lg hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1"
                   >
                     <div className={`flex items-center gap-4 mb-4`}>
-                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl`}>
+                      <div className={`text-4xl bg-${card.color}-50 p-3 rounded-xl border border-${card.color}-100`}>
                         {card.icon}
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">{card.name}</h3>
-                        <p className="text-sm text-gray-500">{card.count} planets</p>
+                        <p className="text-sm text-gray-600">{card.count} planets</p>
                       </div>
                     </div>
                   </div>
@@ -444,7 +454,7 @@ export default function BatchAnalysis() {
             <button
               onClick={handleAnalyze}
               disabled={!file || loading}
-              className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-purple-700 focus:ring-4 focus:ring-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-blue-200"
             >
               <FileText className="w-5 h-5" />
               Analyze File
@@ -454,7 +464,7 @@ export default function BatchAnalysis() {
             {planets && (
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-2 bg-white text-gray-900 px-6 py-3 rounded-xl font-medium border border-gray-300 hover:bg-gray-50 focus:ring-4 focus:ring-gray-100 transition-all"
+                className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-gray-900 px-6 py-3 rounded-xl font-medium border border-blue-100 hover:bg-blue-50 focus:ring-4 focus:ring-blue-100 transition-all shadow-lg hover:shadow-blue-100"
               >
                 <Download className="w-5 h-5" />
                 Download Results

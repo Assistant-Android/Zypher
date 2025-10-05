@@ -56,26 +56,32 @@ export default function ModelTraining() {
   };
 
   return (
-    <section id="training" className="min-h-screen bg-gray-50 py-24 px-6">
-      <div className="max-w-5xl mx-auto">
+    <section 
+      id="training" 
+      style={{
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+      className="min-h-screen py-24 px-6"
+    >
+      <div className="absolute inset-0 bg-[url('/stars_bg.jpg')] opacity-100 pointer-events-none bg-cover"></div>
+      <div className="max-w-5xl mx-auto relative z-10">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 rounded-full mb-4">
-            <Zap size={16} className="text-orange-600" />
-            <span className="text-sm font-medium text-orange-600">Level 3 Challenge</span>
-          </div>
-          <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">Train Custom Model</h2>
-          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">Upload training data to create your own ML model</p>
+         
+          <h2 className="text-5xl md:text-6xl font-semibold text-white mb-4 tracking-tight">Train Custom Model</h2>
+          <p className="text-lg text-gray-400 font-light max-w-2xl mx-auto">Upload training data to create your own ML model</p>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 md:p-12 border border-gray-200 shadow-sm">
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl p-8 md:p-12 border border-blue-100 shadow-lg">
           <div className="mb-8">
-            <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-all bg-white">
+            <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-blue-200 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all bg-white/50 backdrop-blur-sm">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <Upload className="w-12 h-12 mb-4 text-gray-400" strokeWidth={1.5} />
+                <Upload className="w-12 h-12 mb-4 text-blue-400" strokeWidth={1.5} />
                 <p className="mb-2 text-base font-medium text-gray-900">
                   {file ? file.name : 'Click to upload training data (CSV)'}
                 </p>
-                <p className="text-sm text-gray-500">CSV files with labeled exoplanet data</p>
+                <p className="text-sm text-gray-600">CSV files with labeled exoplanet data</p>
               </div>
               <input
                 type="file"
@@ -92,9 +98,9 @@ export default function ModelTraining() {
                 <span className="text-gray-700 font-medium text-sm">Training Progress</span>
                 <span className="text-gray-900 font-semibold text-sm">{progress}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
                 <div
-                  className="h-full bg-gray-900 transition-all duration-300"
+                  className="h-full bg-blue-600 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -105,7 +111,7 @@ export default function ModelTraining() {
             <button
               onClick={handleTrain}
               disabled={!file || loading}
-              className="px-8 py-4 bg-gray-900 text-white font-medium rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-105"
+              className="px-8 py-4 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-105"
             >
               {loading ? (
                 <>
@@ -123,7 +129,7 @@ export default function ModelTraining() {
             {trained && (
               <button
                 onClick={handleDownload}
-                className="px-8 py-4 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 hover:scale-105"
+                className="px-8 py-4 bg-white/90 backdrop-blur-sm text-gray-900 font-medium rounded-full hover:bg-blue-50 transition-all shadow-lg hover:shadow-blue-100 flex items-center gap-2 hover:scale-105 border border-blue-100"
               >
                 <Download size={20} />
                 Download Model
@@ -132,23 +138,23 @@ export default function ModelTraining() {
           </div>
 
           {trained && (
-            <div className="mt-8 bg-green-50 border border-green-200 rounded-2xl p-6">
-              <h3 className="text-xl font-semibold text-green-900 mb-4">Training Complete!</h3>
+            <div className="mt-8 bg-green-50/70 backdrop-blur-sm border border-green-200 rounded-2xl p-6">
+              <h3 className="text-xl font-semibold text-green-800 mb-4">Training Complete!</h3>
               <div className="grid grid-cols-2 gap-4 text-gray-700">
                 <div>
-                  <span className="text-green-700 font-semibold">Model Accuracy:</span> 94.2%
+                  <span className="text-green-600 font-semibold">Model Accuracy:</span> 94.2%
                 </div>
                 <div>
-                  <span className="text-green-700 font-semibold">Training Time:</span> 3.0s
+                  <span className="text-green-600 font-semibold">Training Time:</span> 3.0s
                 </div>
                 <div>
-                  <span className="text-green-700 font-semibold">Parameters:</span> 1.25M
+                  <span className="text-green-600 font-semibold">Parameters:</span> 1.25M
                 </div>
                 <div>
-                  <span className="text-green-700 font-semibold">Architecture:</span> Neural Network
+                  <span className="text-green-600 font-semibold">Architecture:</span> Neural Network
                 </div>
               </div>
-              <div className="mt-4 text-sm text-green-700 font-medium">
+              <div className="mt-4 text-sm text-green-600 font-medium">
                 +100 XP • Level 3 Complete
               </div>
             </div>

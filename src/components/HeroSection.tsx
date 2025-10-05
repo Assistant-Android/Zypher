@@ -17,10 +17,10 @@ export default function HeroSection() {
     // Entrance animation (one-time parallax)
     const layers = [
       { ref: starsRef, from: -80, to: 0, duration: 1500 },
-      { ref: earthRef, from: 150, to: -350, duration: 1800 },
+      { ref: earthRef, from: 150, to: -330, duration: 1800 },
       { ref: moonRef, from: 200, to: 0, duration: 1300 },
-      { ref: textRef, from: 1000, to: 0, duration: 2200 },
-      { ref: titleRef, from: 1000, to: -150, duration: 3000 },
+      { ref: textRef, from: 1000, to: -50, duration: 2200 },
+      { ref: titleRef, from: 1000, to: -100, duration: 3000 },
     ];
 
     const start = performance.now();
@@ -67,19 +67,19 @@ export default function HeroSection() {
 <div className="relative w-full h-screen">
   <p
     ref={titleRef}
-    className="absolute inset-0 m-auto w-max h-max whitespace-nowrap text-3xl sm:text-4xl md:text-5xl lg:text-[280px] text-white font-['Inter'] font-bold drop-shadow-[0_0_12px_rgba(255,255,255,0.6)] leading-none text-center"
+    className="tracking-wide absolute inset-0 m-auto w-max h-max whitespace-nowrap text-3xl sm:text-4xl md:text-5xl lg:text-[250px] text-white font-['Inter'] font-bold drop-shadow-[0_0_12px_rgba(255,255,255,0.6)] leading-none text-center"
   >
-    EXPLORE
+    DISCOVER
   </p>
 </div>
 
 
 
       {/* Earth (middle layer) */}
-      <div className="absolute inset-0 flex items-end justify-center z-10 pointer-events-none">
+      <div className="pl-20 absolute inset-0 flex items-end justify-center z-10 pointer-events-none">
         <div
           ref={earthRef}
-          className="w-3/4 max-w-4xl h-[45%] md:h-[40%] will-change-transform"
+          className="w-3/4 max-w-4xl h-[40%] md:h-[35%] will-change-transform"
           style={{
             backgroundImage: "url(/earth.png)",
             backgroundSize: "contain",

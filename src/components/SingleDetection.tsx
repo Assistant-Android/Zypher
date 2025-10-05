@@ -23,6 +23,25 @@ export default function SingleDetection() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
+  const containerStyle = {
+    minHeight: '100vh',
+    padding: '2rem',
+    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+    position: 'relative',
+    overflow: 'hidden',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'url("/stars_bg.jpg")',
+      opacity: 0.15,
+      pointerEvents: 'none'
+    }
+  } as React.CSSProperties;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -74,28 +93,26 @@ export default function SingleDetection() {
   };
 
   return (
-    <section id="detection" className="min-h-screen bg-gray-50 py-24 px-6">
+    <section id="detection" style={containerStyle} className="min-h-screen relative">
       {showConfetti && <Confetti />}
-
-      <div className="max-w-7xl mx-auto">
+      <div className="absolute inset-0 bg-[url('/stars_bg.jpg')] opacity-100 pointer-events-none bg-cover"></div>
+      
+      <div className="relative z-10 max-w-7xl mx-auto py-24 px-6">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full mb-4">
-            <Sparkles size={16} className="text-blue-600" />
-            <span className="text-sm font-medium text-blue-600">Level 1 Challenge</span>
-          </div>
-          <h2 className="text-5xl md:text-6xl font-semibold text-gray-900 mb-4 tracking-tight">
+          
+          <h2 className="text-5xl md:text-6xl font-semibold text-white mb-4 tracking-tight">
             Single Detection
           </h2>
-          <p className="text-lg text-gray-600 font-light max-w-2xl mx-auto">
+          <p className="text-lg text-gray-400 font-light max-w-2xl mx-auto">
             Input planetary parameters to detect potential exoplanets
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 md:p-12 shadow-sm border border-gray-200">
+            <form onSubmit={handleSubmit} className="backdrop-blur-md bg-white/90 rounded-3xl p-8 md:p-12 shadow-xl border border-blue-100">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {inputFields.map((field) => (
               <div key={field.id} className="flex flex-col">
-                <label className="text-gray-700 mb-2 text-xs font-medium uppercase tracking-wide">
+                <label className="text-gray-800 mb-2 text-lg font-medium uppercase tracking-wide">
                   {field.label}
                 </label>
                 <input
@@ -104,7 +121,7 @@ export default function SingleDetection() {
                   placeholder={field.placeholder}
                   value={formData[field.id] || ''}
                   onChange={(e) => handleChange(field.id, e.target.value)}
-                  className="bg-gray-50 border border-gray-300 rounded-xl px-4 py-3.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                  className="bg-grey-100  border rounded-xl px-4 py-3.5 text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all backdrop-blur-sm"
                 />
               </div>
             ))}
@@ -114,7 +131,7 @@ export default function SingleDetection() {
             <button
               type="submit"
               disabled={loading}
-              className="px-12 py-4 bg-gray-900 text-white font-medium rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 hover:scale-105"
+              className="group px-12 py-4 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 hover:scale-105"
             >
               {loading ? (
                 <>
@@ -123,7 +140,7 @@ export default function SingleDetection() {
                 </>
               ) : (
                 <>
-                  <Sparkles size={20} />
+                  <Sparkles size={20} className="group-hover:animate-pulse" />
                   Detect Exoplanet
                 </>
               )}
@@ -132,7 +149,7 @@ export default function SingleDetection() {
 
           {result && (
             <div
-              className={`mt-8 p-8 rounded-2xl text-center ${
+              className={`mt-8 p-8 rounded-2xl text-center backdrop-blur-sm ${
                 result === 'YES'
                   ? 'bg-green-50 border border-green-200'
                   : 'bg-red-50 border border-red-200'
@@ -140,18 +157,18 @@ export default function SingleDetection() {
             >
               <div className="flex justify-center mb-3">
                 {result === 'YES' ? (
-                  <Award className="text-green-600" size={48} />
+                  <Award className="text-green-600 animate-pulse" size={48} />
                 ) : (
                   <div className="text-4xl">❌</div>
                 )}
               </div>
               <div className={`font-semibold text-xl ${
-                result === 'YES' ? 'text-green-900' : 'text-red-900'
+                result === 'YES' ? 'text-green-700' : 'text-red-700'
               }`}>
                 {result === 'YES' ? 'Exoplanet Detected!' : 'No Exoplanet Detected'}
               </div>
               {result === 'YES' && (
-                <div className="mt-3 text-sm text-green-700 font-medium">
+                <div className="mt-3 text-sm text-green-600 font-medium">
                   +50 XP • Achievement Unlocked
                 </div>
               )}

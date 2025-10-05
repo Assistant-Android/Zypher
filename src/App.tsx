@@ -4,7 +4,8 @@ import SingleDetection from './components/SingleDetection';
 import BatchAnalysis from './components/BatchAnalysis';
 import ModelTraining from './components/ModelTraining';
 import Hyperparameter from './components/Hyperparameter';
-import VideoSection from './components/VideoSection';
+import VideoSection from './components/Tutorial';
+import ChatBot from './components/ChatBot';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <ModelTraining />
       <Hyperparameter />
       <VideoSection />
+      <ChatBot />
 
       <footer className="bg-white border-t border-gray-200 py-12">
         <div className="max-w-7xl mx-auto px-6 text-center">
