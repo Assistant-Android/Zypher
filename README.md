@@ -121,11 +121,11 @@ Each challenge improved our understanding of AI’s role in astrophysics and sha
 | Name | Role |
 |------|------|
 | **Harshil Gajjar** | Team Leader |
-| **Aarush Gandhi** | Developer |
-| **Abhishek Chauhan** | ML Engineer |
-| **Dev Bheda** | Data Analyst |
-| **Deval Aal** | Frontend Developer |
-| **Krishna Parmar** | Research & Design |
+| **Aarush Gandhi** | Frontend Developer |
+| **Krishna Parmar** | Data Analyst |
+| **Dev Bheda** | ML Engineer |
+| **Deval Aal** | Research & Design |
+| **Abhishek Chauhan** | Integration Developer |
 
 ---
 
