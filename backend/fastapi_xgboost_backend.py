@@ -72,7 +72,7 @@ model_lock = threading.Lock()
 # Configure Gemini API key
 # Option 1: Paste your API key directly between the quotes below.
 # Example: HARDCODED_GEMINI_API_KEY = "AIza...yourkey..."
-HARDCODED_GEMINI_API_KEY = "AIzaSyCN4Kr94eVNXPx4c2L9aiayH20tjyE8mJw"
+HARDCODED_GEMINI_API_KEY = "..."
 
 # Option 2: Leave the above empty and set the GEMINI_API_KEY environment variable.
 GEMINI_API_KEY = HARDCODED_GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
